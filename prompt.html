@@ -1,0 +1,2228 @@
+<!doctype html>
+<html lang="zh-CN" class="mdui-theme-auto">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, shrink-to-fit=no">
+<meta name="renderer" content="webkit">
+<title>外观优秀的在线提词器--[@面包 atBreadToolbox]</title>
+<link rel="icon" type="image/svg+xml" href="https://fonts.gstatic.com/s/i/materialicons/article/v12/24px.svg">
+<link rel="stylesheet" href="https://unpkg.com/mdui@2/mdui.css">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<script src="https://unpkg.com/mdui@2/mdui.global.js"></script>
+<style>
+/* ============ 基础 ============ */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; min-height: 100%; overflow-x: hidden;
+  user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+body {
+  font-family: Consolas, Menlo, Monaco, 'Courier New', 'Liberation Mono',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Heiti SC', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+body.fs-active { overflow: hidden; }
+#editorField, #editorField::part(input) { user-select: text; -webkit-user-select: text; }
+[hidden] { display: none !important; }
+
+/* ============ 页面骨架 ============ */
+.page {
+  max-width: 1100px; margin: 0 auto; padding: 16px 16px 32px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.view { display: none; }
+.view.active { display: flex; flex-direction: column; gap: 16px; }
+.panel { background: rgb(var(--mdui-color-surface-container)); border-radius: 16px; padding: 16px; }
+
+/* ============ 顶栏 ============ */
+.app-top-bar mdui-top-app-bar-title { font-size: 20px; font-weight: 500; }
+.app-top-bar mdui-top-app-bar-title [slot="label-large"] { font-size: 32px; font-weight: 600; }
+.top-bar-actions { display: flex; align-items: center; gap: 2px; margin-right: 6px; }
+
+/* ============ 控制条 ============ */
+.controls {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 24px; align-items: center;
+}
+.ctrl { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ctrl-label { font-size: 13px; color: rgb(var(--mdui-color-on-surface-variant)); white-space: nowrap; flex: none; }
+.ctrl mdui-slider { flex: 1 1 auto; min-width: 60px; }
+.ctrl-value { font-size: 13px; font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; flex: none; }
+.ctrl input[type="color"] {
+  flex: 1 1 auto; height: 32px; min-width: 48px; padding: 2px;
+  border: 1px solid rgb(var(--mdui-color-outline-variant)); border-radius: 8px;
+  background: transparent; cursor: pointer;
+}
+.ctrl input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.ctrl input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+.ctrl-full { grid-column: 1 / -1; align-items: flex-start; }
+.chip-group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ============ 文本编辑区 ============ */
+.editor-wrap { position: relative; width: 100%; }
+#editorField { display: block; width: 100%; }
+#editorField::part(input) {
+  resize: none; overflow-y: auto; line-height: 1.7;
+  font-family: Consolas, Menlo, Monaco, 'Courier New', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+/* ============ 预览窗格 ============ */
+.preview-pane {
+  position: relative; height: 220px; min-height: 100px; border-radius: 16px;
+  overflow: hidden; background: #000; border: 1px solid rgb(var(--mdui-color-outline-variant));
+  flex: none;
+}
+.preview-badge { position: absolute; top: 8px; left: 12px; z-index: 5; font-size: 11px; letter-spacing: .1em; color: rgba(255,255,255,.32); pointer-events: none; }
+.viewport.preview-viewport { position: absolute; inset: 0; pointer-events: none; }
+
+/* ============ 提词视口 ============ */
+.viewport { position: relative; overflow: hidden; width: 100%; height: 100%; background: #000; }
+.viewport .guide-band {
+  position: absolute; left: 0; right: 0; top: calc(50% - 1.5em); height: 3em;
+  border-top: 2px solid var(--guide-color, #e53935); border-bottom: 2px solid var(--guide-color, #e53935);
+  pointer-events: none; z-index: 2;
+}
+.viewport.hide-guide .guide-band { display: none; }
+.viewport .text-layer {
+  position: absolute; top: calc(50% - 1.5em); left: 0; right: 0;
+  padding: 0 max(24px, var(--page-margin-pct, 0%)); margin: 0; line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;
+  color: var(--text-color, #fff); font-family: var(--text-font, Consolas, Menlo, Monaco, 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  will-change: transform; backface-visibility: hidden; z-index: 1; transform: translate3d(0,0,0);
+}
+.viewport.indent-first .text-layer { text-indent: 2em; }
+
+/* ============ 关于页 ============ */
+.view.about-view {
+  align-items: center; justify-content: center; text-align: center;
+  width: 100%; padding: 48px 20px 60px; gap: 6px; min-height: calc(100vh - 140px);
+}
+.about-icon { font-size: 56px; color: rgb(var(--mdui-color-primary)); opacity: .85; }
+.about-title { margin: 12px 0 0; font-size: 26px; font-weight: 600; }
+.about-subtitle { margin: 0; font-size: 14px; color: rgb(var(--mdui-color-on-surface-variant)); }
+.about-desc { margin-top: 28px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.7; color: rgb(var(--mdui-color-on-surface-variant)); max-width: min(460px,100%); }
+.about-desc p { margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; word-break: break-word; }
+.about-copyright { margin-top: 36px; font-size: 12px; opacity: .65; }
+
+/* ============ 全屏 ============ */
+.fs-root { position: fixed; inset: 0; z-index: 99999; background: #000; display: none; }
+.fs-root.active { display: block; }
+.fs-root .fs-viewport { position: absolute; inset: 0; touch-action: none; cursor: grab; }
+.fs-root .fs-viewport.dragging { cursor: grabbing; }
+.fs-root .fs-viewport .text-layer { padding: 0 max(5vw, var(--page-margin-pct, 0%)); }
+.fs-menu-btn { position: absolute; top: 14px; right: 14px; z-index: 102; }
+.fs-panel {
+  position: absolute; top: 68px; right: 14px; z-index: 100; width: 242px;
+  max-width: calc(100vw - 28px);
+  max-height: calc(100vh - 82px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 14px 14px; border-radius: 14px; background: rgba(20,20,24,.94);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,.09); box-shadow: 0 10px 32px rgba(0,0,0,.6);
+  font-size: 12px;
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.85);
+  transform-origin: top right;
+  transition:
+    opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 240ms;
+}
+.fs-panel.open {
+  visibility: visible;
+  pointer-events: auto;
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0s;
+}
+.fs-panel-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 500; }
+.fs-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; color: rgba(255,255,255,.72); }
+.fs-panel mdui-slider { width: 100%; margin: 2px 0 0; }
+.fs-colors { display: flex; gap: 10px; margin-top: 10px; }
+.fs-colors label { flex: 1; display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,.72); }
+.fs-colors input[type="color"] { flex: 1; min-width: 0; height: 26px; padding: 2px; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; background: transparent; cursor: pointer; }
+.fs-exit-row { margin-top: 12px; display: flex; justify-content: flex-end; }
+.fs-tips { margin-top: 10px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,.1); font-size: 11px; line-height: 1.7; color: rgba(255,255,255,.4); }
+
+/* ============ 涟漪遮罩（无模糊） ============ */
+.drop-ripple {
+  position: fixed; inset: 0; z-index: 100000;
+  pointer-events: none; overflow: hidden;
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+.drop-ripple.visible { opacity: 1; }
+.drop-ripple-mask {
+  position: absolute; inset: 0; pointer-events: none;
+  background: rgba(8,10,14,.5);
+  clip-path: circle(0px at 50% 50%);
+}
+.drop-ripple.visible .drop-ripple-mask { will-change: clip-path; }
+.drop-cursor-glow {
+  position: absolute; left: 0; top: 0; width: 180px; height: 180px; border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.55) 18%, rgba(255,255,255,0.22) 42%, rgba(255,255,255,0.06) 68%, rgba(255,255,255,0) 100%);
+  pointer-events: none; opacity: 0; transition: opacity .35s cubic-bezier(0.16,1,0.3,1);
+  mix-blend-mode: screen;
+}
+.drop-ripple.covered .drop-cursor-glow { opacity: 1; }
+
+/* ============ 底部导航 ============ */
+@media (min-width: 840px) {
+  #navBar {
+    position: fixed !important; top: auto !important; bottom: 20px !important;
+    left: 50% !important; right: auto !important; width: 300px !important;
+    max-width: calc(100vw - 40px) !important; transform: translateX(-50%) !important;
+    border-radius: 999px; overflow: hidden;
+    box-shadow: 0 8px 28px rgba(0,0,0,.16), 0 2px 6px rgba(0,0,0,.06);
+    z-index: 900;
+  }
+}
+body.fs-active #navBar { display: none !important; }
+
+/* ============ 首次引导 ============ */
+.guide-overlay { position: fixed; inset: 0; z-index: 999999; cursor: pointer; opacity: 0; transition: opacity .3s ease; }
+.guide-overlay.show { opacity: 1; }
+.guide-glow {
+  position: absolute; width: 180px; height: 180px; border-radius: 50%; transform: translate(-50%,-50%);
+  background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.55) 18%, rgba(255,255,255,0.22) 42%, rgba(255,255,255,0.06) 68%, rgba(255,255,255,0) 100%);
+  pointer-events: none; mix-blend-mode: screen; animation: guidePulse 1.6s ease-in-out infinite;
+}
+@keyframes guidePulse { 0%,100% { opacity:.75; transform: translate(-50%,-50%) scale(1); } 50% { opacity:1; transform: translate(-50%,-50%) scale(1.08); } }
+.guide-arrow {
+  position: absolute; width: 0; height: 0; transform: translate(-50%,0);
+  border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 18px solid #fff;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); animation: guideArrow 1.6s ease-in-out infinite;
+}
+@keyframes guideArrow { 0%,100% { transform: translate(-50%,0); } 50% { transform: translate(-50%,-6px); } }
+.guide-text {
+  position: absolute; padding: 10px 16px; border-radius: 12px; background: rgba(20,20,24,.92);
+  color: #fff; font-size: 14px; line-height: 1.5; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  border: 1px solid rgba(255,255,255,.1); max-width: calc(100vw - 32px);
+}
+.guide-text .guide-main { font-weight: 600; white-space: nowrap; }
+.guide-text .guide-sub { display: block; margin-top: 4px; font-size: 12px; opacity: .65; white-space: nowrap; }
+
+/* ============ 字体触发按钮 ============ */
+.font-trigger-wrap {
+  display: flex; justify-content: center; padding: 8px 0 4px; position: relative;
+  transition: transform 120ms cubic-bezier(0.2, 0, 0, 1);
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.font-trigger-wrap.is-pressed { transform: scale(0.96); }
+
+/* ============ 首页浮动预览 ============ */
+.home-preview-float {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 99990;
+  width: min(90vw, 640px);
+  height: min(45vh, 360px);
+  transform: translate(-50%, -50%) scale(0.92);
+  border-radius: 20px;
+  overflow: hidden;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 260ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+              visibility 0s linear 260ms;
+}
+.home-preview-float.show {
+  opacity: 0.7;
+  transform: translate(-50%, -50%) scale(1);
+  visibility: visible;
+  transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              visibility 0s linear 0s;
+}
+.home-preview-float .preview-badge { opacity: .5; }
+.home-preview-float .viewport {
+  border-radius: 20px;
+}
+
+/* ============ morph 撑开层 ============ */
+#morphLayer {
+  position: fixed; z-index: 999998; overflow: hidden; pointer-events: none;
+  opacity: 0; display: none;
+  will-change: left, top, width, height, border-radius, opacity, background-color;
+}
+#morphLayer.visible { opacity: 1; }
+
+/* ============ 字体副页面 ============ */
+.font-pageB {
+  position: fixed; inset: 0; z-index: 999997;
+  visibility: hidden; pointer-events: none;
+  background: rgb(var(--mdui-color-surface));
+  touch-action: none; /* 手势完全接管，不依赖浏览器滚动 */
+}
+.font-pageB.active { visibility: visible; pointer-events: auto; }
+
+.font-pageB-close { position: absolute; top: 14px; left: 14px; z-index: 10; }
+
+body.font-page-open #navBar { display: none !important; }
+
+/* 内容固定，不滚动 */
+.font-pageB-content {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  display: flex; flex-direction: column;
+  opacity: 0;
+  transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.font-pageB.content-in .font-pageB-content { opacity: 1; }
+
+/* 竖屏：纵向排列；横屏：左右两列 */
+.font-pageB-inner {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 56px 16px 32px;
+  width: 100%;
+  max-width: 640px;
+  box-sizing: border-box;
+}
+.font-pageB-inner .options-title { margin: 4px 0 12px; font-size: 22px; font-weight: 600; }
+.font-pageB-inner .option-row {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 0;
+  border-bottom: 1px solid rgb(var(--mdui-color-outline-variant));
+}
+.font-pageB-inner .option-row:last-of-type { border-bottom: none; }
+.font-pageB-inner .option-label { font-size: 14px; font-weight: 500; }
+.font-pageB-inner .option-desc { font-size: 12px; line-height: 1.7; color: rgb(var(--mdui-color-on-surface-variant)); }
+.font-pageB-inner mdui-select { width: 100%; max-width: 320px; }
+
+/* 预览框在竖屏下的间距 */
+.font-pageB-inner .preview-pane {
+  margin: 12px 0 0;
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 160px;
+}
+
+/* 横屏：左右两列，左字体右预览 */
+@media (orientation: landscape) and (min-width: 640px) {
+  .font-pageB-inner {
+    flex-direction: row;
+    align-items: stretch;
+    max-width: 1100px;
+    gap: 24px;
+    padding: 64px 24px 32px;
+  }
+  .font-pageB-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+  .font-pageB-col-preview {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .font-pageB-col-preview .preview-pane {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+  }
+  .font-pageB-inner .options-title { margin-top: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #morphLayer, .font-pageB-content, .font-trigger-wrap,
+  .guide-glow, .guide-arrow { transition-duration: 0.01ms !important; animation: none; }
+}
+</style>
+</head>
+<body>
+
+<mdui-top-app-bar class="app-top-bar" variant="medium" scroll-behavior="shrink elevate">
+  <mdui-button-icon icon="article" disabled style="opacity:.85"></mdui-button-icon>
+  <mdui-top-app-bar-title>
+    提词器
+    <span slot="label-large">提词器</span>
+  </mdui-top-app-bar-title>
+  <div style="flex-grow: 1"></div>
+  <div class="top-bar-actions">
+    <input type="file" id="fileInput"
+      accept=".txt,.md,.markdown,.docx,.odt,.doc,.ttf,.otf,.woff,.woff2" hidden>
+    <mdui-button-icon id="importBtn" icon="upload_file" title="导入文档或字体"></mdui-button-icon>
+    <mdui-button-icon id="startBtn" icon="fullscreen" title="开始提词"></mdui-button-icon>
+  </div>
+</mdui-top-app-bar>
+
+<div class="page">
+
+  <div class="view active" id="view-home">
+    <section class="panel">
+      <div class="controls">
+        <div class="ctrl">
+          <span class="ctrl-label">速度</span>
+          <mdui-slider id="speedSlider" min="5" max="300" step="5" value="60"></mdui-slider>
+          <span class="ctrl-value" id="speedValue">60</span>
+        </div>
+        <div class="ctrl">
+          <span class="ctrl-label">字号</span>
+          <mdui-slider id="fontSlider" min="16" max="120" step="2" value="40"></mdui-slider>
+          <span class="ctrl-value" id="fontValue">40</span>
+        </div>
+        <div class="ctrl">
+          <span class="ctrl-label">字色</span>
+          <input type="color" id="textColorInput" value="#ffffff">
+        </div>
+        <div class="ctrl">
+          <span class="ctrl-label">标线色</span>
+          <input type="color" id="guideColorInput" value="#e53935">
+        </div>
+        <div class="ctrl ctrl-margin">
+          <span class="ctrl-label">文本宽度</span>
+          <mdui-slider id="marginSlider" min="10" max="100" step="1" value="100"></mdui-slider>
+          <span class="ctrl-value" id="marginValue">100%</span>
+        </div>
+        <div class="ctrl ctrl-full">
+          <span class="ctrl-label">选项</span>
+          <div class="chip-group">
+            <mdui-chip id="chipGuide"    selectable selected icon="horizontal_rule">显示标线</mdui-chip>
+            <mdui-chip id="chipMirror"   selectable icon="flip">反转镜像</mdui-chip>
+            <mdui-chip id="chipIndent"   selectable icon="format_indent_increase">首行缩进 2 字</mdui-chip>
+            <mdui-chip id="chipAutoExit" selectable icon="logout">播放完毕自动退出</mdui-chip>
+            <mdui-chip id="chipNoKeys"   selectable icon="keyboard_hide">禁用全屏后快捷键</mdui-chip>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="editor-section">
+      <div class="editor-wrap" id="editorWrap">
+        <mdui-text-field autosize min-rows="2" max-rows="10" counter maxlength="50000" label="题词器文本" id="editorField"
+          placeholder="在此输入或粘贴提词内容，也可将 txt / md / docx / odt / ttf / otf / woff / woff2 文件拖拽到页面导入…"></mdui-text-field>
+      </div>
+    </section>
+
+    <div class="font-trigger-wrap" id="fontTriggerWrap">
+      <mdui-button id="fontBtn" variant="filled" ripple icon="text_fields">字体更换/效果预览</mdui-button>
+    </div>
+
+    <br><br><br><br><br><br><br><br>
+  </div>
+
+  <!-- ============ 关于视图 ============ -->
+  <div class="view about-view" id="view-about">
+    <mdui-icon name="article" class="about-icon"></mdui-icon>
+    <br><br><br>
+
+
+      <div id="log" class="markdown-body">
+        <p class="state">加载中…</p>
+      </div>
+
+      <script type="module">
+        import { marked } from 'https://cdn.jsdelivr.net/npm/marked@12/lib/marked.esm.js';
+
+        const el = document.getElementById('log');
+
+        // 同源：直接用相对路径；加时间戳绕过 GitHub Pages 的 10 分钟缓存
+        const url = `./CHANGELOG.md?t=${Date.now()}`;
+
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const md = await res.text();
+          el.innerHTML = marked.parse(md);
+        } catch (e) {
+          el.innerHTML = `<p class="state">更新日志加载失败：${e.message}</p>`;
+        }
+      </script>
+  </div>
+
+</div>
+
+<mdui-navigation-bar id="navBar" value="home">
+  <mdui-navigation-bar-item icon="home" value="home">主页</mdui-navigation-bar-item>
+  <mdui-navigation-bar-item icon="info" value="about">关于</mdui-navigation-bar-item>
+</mdui-navigation-bar>
+
+<section id="fontPageB" class="font-pageB" aria-hidden="true">
+  <mdui-button-icon id="fontCloseBtn" class="font-pageB-close" icon="arrow_back" title="返回"></mdui-button-icon>
+
+  <div class="font-pageB-content">
+    <div class="font-pageB-inner">
+
+      <!-- 左列（竖屏时是上半部分）：字体设置 -->
+      <div class="font-pageB-col">
+        <h3 class="options-title">文本字体</h3>
+
+        <div class="option-row">
+          <span class="option-label">字体</span>
+                  <mdui-select id="fontFamilySelect" value="mono">
+                    <mdui-menu-item value="mono">等宽字体</mdui-menu-item>
+                    <mdui-menu-item value="system">系统字体</mdui-menu-item>
+                    <mdui-menu-item value="serif">衬线字体</mdui-menu-item>
+                    <mdui-menu-item value="custom">自定义字体…</mdui-menu-item>
+                  </mdui-select>
+                  <input
+                    type="file"
+                    id="customFontFileInput"
+                    accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
+                    hidden
+                  >
+          <span class="option-desc">
+            等宽字体：Consolas / Menlo，数字与拉丁字母用等宽字形，中文自动回退到系统字体。<br>
+            系统字体：跟随操作系统的默认界面字体。<br>
+            衬线字体：Georgia / 宋体等衬线字形。
+          </span>
+        </div>
+
+      <!-- 右列（竖屏时是下半部分）：预览框 -->
+    <div class="font-pageB-col font-pageB-col-preview">
+        <section class="preview-pane" id="previewPane">
+          <div class="preview-badge">预览</div>
+          <div class="viewport preview-viewport" id="previewViewport">
+            <div class="guide-band"></div>
+            <div class="text-layer" id="previewText"></div>
+          </div>
+        </section>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============ 首页浮动预览 ============ -->
+<div class="home-preview-float" id="homePreviewFloat" aria-hidden="true">
+  <div class="preview-badge">预览</div>
+  <div class="viewport preview-viewport" id="homePreviewViewport">
+    <div class="guide-band"></div>
+    <div class="text-layer" id="homePreviewText"></div>
+  </div>
+</div>
+
+
+<div id="morphLayer"></div>
+
+<div class="fs-root" id="fsRoot">
+  <div class="viewport fs-viewport" id="fsViewport">
+    <div class="guide-band"></div>
+    <div class="text-layer" id="fsText"></div>
+  </div>
+  <mdui-button-icon id="fsMenuBtn" class="fs-menu-btn mdui-theme-dark" icon="tune" title="提词设置"></mdui-button-icon>
+  <div class="fs-panel mdui-theme-dark" id="fsPanel">
+    <div class="fs-panel-head">
+      <span>提词设置</span>
+      <mdui-button-icon icon="close" id="fsPanelCloseBtn" title="收起设置"></mdui-button-icon>
+    </div>
+    <div class="fs-row"><span>速度</span><span id="fsSpeedValue">60</span></div>
+    <mdui-slider id="fsSpeedSlider" min="5" max="300" step="5" value="60"></mdui-slider>
+    <div class="fs-row"><span>字号</span><span id="fsFontValue">40</span></div>
+    <mdui-slider id="fsFontSlider" min="16" max="120" step="2" value="40"></mdui-slider>
+    <div class="fs-row fs-row-margin"><span>文本宽度</span><span id="fsMarginValue">100%</span></div>
+    <mdui-slider id="fsMarginSlider" class="fs-margin-slider" min="10" max="100" step="1" value="100"></mdui-slider>
+    <div class="fs-colors">
+      <label>字色 <input type="color" id="fsTextColor" value="#ffffff"></label>
+      <label>标线 <input type="color" id="fsGuideColor" value="#e53935"></label>
+    </div>
+    <div class="fs-exit-row">
+      <mdui-button variant="outlined" icon="fullscreen_exit" id="fsExitBtn">退出全屏</mdui-button>
+    </div>
+    <div class="fs-tips">
+      滚轮 滚动文本 · 空格 暂停/继续<br>
+      ↑↓←→ 翻 2 行 · R 重置 · ESC 退出
+    </div>
+  </div>
+  <mdui-dialog id="endDialog" class="mdui-theme-dark" close-on-esc close-on-overlay-click>
+    <span slot="headline">播放结束</span>
+    <span slot="description">提词内容已播放完毕，是否退出全屏？</span>
+    <mdui-button slot="action" variant="text" id="endStayBtn">留在全屏</mdui-button>
+    <mdui-button slot="action" variant="tonal" id="endExitBtn">退出全屏</mdui-button>
+  </mdui-dialog>
+</div>
+
+<div class="drop-ripple" id="dropRipple">
+  <div class="drop-ripple-mask" id="dropRippleMask"></div>
+  <div class="drop-cursor-glow" id="dropCursorGlow"></div>
+</div>
+
+<div class="guide-overlay" id="guideOverlay" hidden>
+  <div class="guide-glow"   id="guideGlow"></div>
+  <div class="guide-arrow"  id="guideArrow"></div>
+  <div class="guide-text"   id="guideText">
+    <span class="guide-main">点击此按钮开始提词</span>
+    <span class="guide-sub">进入全屏，文本自动从下往上滚动</span>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   主题强调色
+   ========================================================= */
+(function initAccentColor() {
+  if (window.mdui && typeof mdui.setColorScheme === 'function') {
+    mdui.setColorScheme('#006463');
+  }
+})();
+
+/* =========================================================
+   全局状态
+   ========================================================= */
+const state = {
+  fontSize: 40, speed: 60, textColor: '#ffffff', guideColor: '#e53935',
+  textWidth: 100, fontFamily: 'mono', customFontFamily: null,
+  showGuide: true, mirror: false, firstLineIndent: false,
+  autoExit: false, disableKeys: false
+};
+
+const FONT_STACKS = {
+  mono: "Consolas, Menlo, Monaco, 'Courier New', 'Liberation Mono', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Heiti SC', sans-serif",
+  system: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Heiti SC', sans-serif",
+  serif: "Georgia, 'Times New Roman', 'Songti SC', SimSun, 'Noto Serif SC', 'Source Han Serif SC', serif"
+};
+
+function getFontFamily() {
+  if (state.fontFamily === 'custom' && state.customFontFamily) {
+    return `'${state.customFontFamily}', ` + FONT_STACKS.mono;
+  }
+  return FONT_STACKS[state.fontFamily] || FONT_STACKS.mono;
+}
+
+let isFullscreen = false;
+let currentView = 'home';
+const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* =========================================================
+   DOM
+   ========================================================= */
+const navBar = document.getElementById('navBar');
+const viewHome = document.getElementById('view-home');
+const viewAbout = document.getElementById('view-about');
+const views = { home: viewHome, about: viewAbout };
+
+const editorField = document.getElementById('editorField');
+const previewPane = document.getElementById('previewPane');
+const previewViewport = document.getElementById('previewViewport');
+const previewText = document.getElementById('previewText');
+
+const fsRoot = document.getElementById('fsRoot');
+const fsViewport = document.getElementById('fsViewport');
+const fsText = document.getElementById('fsText');
+const fsMenuBtn = document.getElementById('fsMenuBtn');
+const fsPanel = document.getElementById('fsPanel');
+const fsPanelCloseBtn = document.getElementById('fsPanelCloseBtn');
+
+const speedSlider = document.getElementById('speedSlider');
+const speedValue = document.getElementById('speedValue');
+const fontSlider = document.getElementById('fontSlider');
+const fontValue = document.getElementById('fontValue');
+const textColorInput = document.getElementById('textColorInput');
+const guideColorInput = document.getElementById('guideColorInput');
+const marginSlider = document.getElementById('marginSlider');
+const marginValue = document.getElementById('marginValue');
+
+const fontFamilySelect = document.getElementById('fontFamilySelect');
+const customFontOption = fontFamilySelect.querySelector('mdui-menu-item[value="custom"]');
+
+const chipGuide = document.getElementById('chipGuide');
+const chipMirror = document.getElementById('chipMirror');
+const chipIndent = document.getElementById('chipIndent');
+const chipAutoExit = document.getElementById('chipAutoExit');
+const chipNoKeys = document.getElementById('chipNoKeys');
+
+const fsSpeedSlider = document.getElementById('fsSpeedSlider');
+const fsSpeedValue = document.getElementById('fsSpeedValue');
+const fsFontSlider = document.getElementById('fsFontSlider');
+const fsFontValue = document.getElementById('fsFontValue');
+const fsMarginSlider = document.getElementById('fsMarginSlider');
+const fsMarginValue = document.getElementById('fsMarginValue');
+const fsTextColor = document.getElementById('fsTextColor');
+const fsGuideColor = document.getElementById('fsGuideColor');
+const fsExitBtn = document.getElementById('fsExitBtn');
+
+const endDialog = document.getElementById('endDialog');
+const endStayBtn = document.getElementById('endStayBtn');
+const endExitBtn = document.getElementById('endExitBtn');
+
+const startBtn = document.getElementById('startBtn');
+const importBtn = document.getElementById('importBtn');
+const fileInput = document.getElementById('fileInput');
+
+const dropRipple = document.getElementById('dropRipple');
+const dropRippleMask = document.getElementById('dropRippleMask');
+const dropCursorGlow = document.getElementById('dropCursorGlow');
+
+const guideOverlay = document.getElementById('guideOverlay');
+const guideGlow = document.getElementById('guideGlow');
+const guideArrow = document.getElementById('guideArrow');
+const guideText = document.getElementById('guideText');
+
+/* ============================================================ */
+const autoScrollStoppers = new Set();
+function stopAllAutoScroll() {
+  autoScrollStoppers.forEach(fn => { try { fn(); } catch (_) {} });
+  autoScrollStoppers.clear();
+}
+
+/* =========================================================
+   视图切换
+   ========================================================= */
+function switchView(name) {
+  if (name === currentView) return;
+  const targetView = views[name];
+  if (!targetView) return;
+
+  stopAllAutoScroll();
+  Object.values(views).forEach(v => v.classList.remove('active'));
+  targetView.classList.add('active');
+
+  const order = ['home', 'about'];
+  const offset = order.indexOf(name) >= order.indexOf(currentView) ? 36 : -36;
+  currentView = name;
+
+  if (!prefersReducedMotion && typeof targetView.animate === 'function') {
+    try {
+      targetView.animate(
+        [{ opacity: 0, transform: `translateX(${offset}px)` }, { opacity: 1, transform: 'translateX(0)' }],
+        { duration: 340, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+      );
+    } catch (_) {}
+  }
+
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    previewScroller.measure();
+    mainScroller.measure();
+    previewScroller.setPosition(previewScroller.position);
+    mainScroller.setPosition(mainScroller.position);
+  });
+}
+
+navBar.addEventListener('change', (e) => switchView(e.target.value));
+
+const isWideScreen = () => window.matchMedia('(min-width: 840px)').matches;
+const bodyStyleObserver = new MutationObserver(() => {
+  if (isWideScreen() && document.body.style.paddingBottom && document.body.style.paddingBottom !== '0px') {
+    document.body.style.paddingBottom = '0px';
+  }
+});
+bodyStyleObserver.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+
+/* =========================================================
+   滚动器
+   ========================================================= */
+function createScroller(viewportEl, textEl, { loop = false, onEnd = null } = {}) {
+  return {
+    viewport: viewportEl, text: textEl, position: 0, playing: false, loop, onEnd, max: 0,
+    apply() {
+      const base = `translate3d(0, ${-this.position}px, 0)`;
+      this.text.style.transform = state.mirror ? `${base} scaleX(-1)` : base;
+    },
+    measure() {
+      const h = this.text.offsetHeight || 0;
+      const cs = getComputedStyle(this.text);
+      let lh = parseFloat(cs.lineHeight);
+      if (!lh || Number.isNaN(lh)) lh = state.fontSize * 1.5;
+      this.max = Math.max(0, h + lh * 3);
+    },
+    setPosition(p) {
+      this.position = Math.max(0, Math.min(this.max, p));
+      this.apply();
+    },
+    nudge(px) { this.setPosition(this.position + px); },
+    reset() { this.position = 0; this.apply(); },
+    step(dt) {
+      if (this.max <= 0) return;
+      this.position += state.speed * dt;
+      if (this.position >= this.max) {
+        if (this.loop) this.position = 0;
+        else {
+          this.position = this.max;
+          this.playing = false;
+          if (typeof this.onEnd === 'function') {
+            const cb = this.onEnd;
+            requestAnimationFrame(() => cb());
+          }
+        }
+      }
+      this.apply();
+    }
+  };
+}
+
+const previewScroller = createScroller(previewViewport, previewText, { loop: true });
+const mainScroller = createScroller(fsViewport, fsText, { loop: false, onEnd: handlePromptEnd });
+
+/* =========================================================
+   首页浮动预览
+   ========================================================= */
+const homePreviewFloat = document.getElementById('homePreviewFloat');
+const homePreviewViewport = document.getElementById('homePreviewViewport');
+const homePreviewText = document.getElementById('homePreviewText');
+
+const homeFloatScroller = createScroller(homePreviewViewport, homePreviewText, { loop: true });
+
+let homeFloatTimer = null;
+let homeFloatHideTimer = null;
+let homeFloatVisible = false;
+
+function showHomeFloat(duration = 1000) {
+  clearTimeout(homeFloatHideTimer);
+  homeFloatHideTimer = null;
+
+  if (!homeFloatVisible) {
+    homeFloatVisible = true;
+    // 同步当前文本和样式
+    homePreviewText.textContent = editorField.value || '';
+    applyStylesToViewport(homePreviewViewport);
+    requestAnimationFrame(() => {
+      homeFloatScroller.measure();
+      homeFloatScroller.setPosition(0);
+      homeFloatScroller.playing = true;
+    });
+    homePreviewFloat.classList.add('show');
+    homePreviewFloat.setAttribute('aria-hidden', 'false');
+  }
+
+  // 重置淡出计时器
+  clearTimeout(homeFloatTimer);
+  homeFloatTimer = setTimeout(() => {
+    hideHomeFloat();
+  }, duration);
+}
+
+function hideHomeFloat() {
+  clearTimeout(homeFloatTimer);
+  homeFloatTimer = null;
+  if (!homeFloatVisible) return;
+  homeFloatVisible = false;
+  homePreviewFloat.classList.remove('show');
+  homePreviewFloat.setAttribute('aria-hidden', 'true');
+  homeFloatScroller.playing = false;
+}
+
+/* 把当前样式同步到任意 viewport（复用 applyStyles 的逻辑） */
+function applyStylesToViewport(v) {
+  const fs = state.fontSize + 'px';
+  const fontFam = getFontFamily();
+  const marginPctStr = ((100 - state.textWidth) / 2) + '%';
+  v.style.fontSize = fs;
+  v.style.setProperty('--page-margin-pct', marginPctStr);
+  v.style.setProperty('--text-font', fontFam);
+  v.style.setProperty('--text-color', state.textColor);
+  v.style.setProperty('--guide-color', state.guideColor);
+  v.classList.toggle('hide-guide', !state.showGuide);
+  v.classList.toggle('indent-first', state.firstLineIndent);
+}
+
+/* 绑定触发事件 */
+function bindHomeFloatTriggers() {
+  // 所有滑块：input 期间持续显示，pointerup/change 后 1s 淡出
+  const sliders = [speedSlider, fontSlider, marginSlider];
+  sliders.forEach((slider) => {
+    slider.addEventListener('input', () => {
+      showHomeFloat(1000);
+    });
+    slider.addEventListener('change', () => {
+      showHomeFloat(1000);
+    });
+    // 指针离开滑块（松手）后开始 1s 计时
+    slider.addEventListener('pointerup', () => {
+      showHomeFloat(1000);
+    });
+    slider.addEventListener('pointercancel', () => {
+      showHomeFloat(1000);
+    });
+  });
+
+  // 颜色框：input 期间保持，blur 后 1s 淡出
+  [textColorInput, guideColorInput].forEach((input) => {
+    input.addEventListener('input', () => {
+      showHomeFloat(1000);
+    });
+    input.addEventListener('change', () => {
+      showHomeFloat(1000);
+    });
+    input.addEventListener('blur', () => {
+      showHomeFloat(1000);
+    });
+  });
+
+  // chip 选项：change 后 1s 淡出
+  [chipGuide, chipMirror, chipIndent].forEach((chip) => {
+    if (!chip) return;
+    chip.addEventListener('change', () => {
+      showHomeFloat(1000);
+    });
+  });
+
+  // 字体选择：change 后 1s 淡出
+  fontFamilySelect.addEventListener('change', () => {
+    showHomeFloat(1000);
+  });
+}
+
+function handlePromptEnd() {
+  if (!isFullscreen) return;
+  closeFsPanel();
+  if (state.autoExit) { exitFullscreen(); return; }
+  endDialog.open = true;
+}
+
+endStayBtn.addEventListener('click', () => { endDialog.open = false; });
+endExitBtn.addEventListener('click', () => { endDialog.open = false; exitFullscreen(); });
+
+/* =========================================================
+   主循环
+   ========================================================= */
+let lastTs = 0;
+function rafLoop(ts) {
+  const dt = lastTs ? Math.min((ts - lastTs) / 1000, 0.1) : 0;
+  lastTs = ts;
+  if (mainScroller.playing) mainScroller.step(dt);
+  if (previewScroller.playing) previewScroller.step(dt);
+  if (homeFloatScroller.playing) homeFloatScroller.step(dt);
+  requestAnimationFrame(rafLoop);
+}
+requestAnimationFrame(rafLoop);
+
+/* =========================================================
+   文本 & 样式
+   ========================================================= */
+let textTimer = null;
+function scheduleTextUpdate() {
+  clearTimeout(textTimer);
+  textTimer = setTimeout(updateText, 120);
+}
+
+function updateText() {
+  const text = editorField.value || '';
+  previewScroller.text.textContent = text;
+  mainScroller.text.textContent = text;
+  if (homeFloatVisible) {
+    homePreviewText.textContent = text;
+    requestAnimationFrame(() => {
+      homeFloatScroller.measure();
+      homeFloatScroller.setPosition(homeFloatScroller.position);
+    });
+  }
+  requestAnimationFrame(() => {
+    previewScroller.measure();
+    mainScroller.measure();
+    previewScroller.setPosition(previewScroller.position);
+    mainScroller.setPosition(mainScroller.position);
+  });
+}
+
+function getPreviewMinHeight() { return state.fontSize * 3 + 32; }
+
+function applyStyles() {
+  const fs = state.fontSize + 'px';
+  const fontFam = getFontFamily();
+  const marginPctStr = ((100 - state.textWidth) / 2) + '%';
+
+  [previewViewport, fsViewport].forEach(v => {
+    v.style.fontSize = fs;
+    v.style.setProperty('--page-margin-pct', marginPctStr);
+    v.style.setProperty('--text-font', fontFam);
+    v.style.setProperty('--text-color', state.textColor);
+    v.style.setProperty('--guide-color', state.guideColor);
+    v.classList.toggle('hide-guide', !state.showGuide);
+    v.classList.toggle('indent-first', state.firstLineIndent);
+  });
+
+  const minH = getPreviewMinHeight();
+  previewPane.style.minHeight = minH + 'px';
+
+  previewScroller.measure();
+  mainScroller.measure();
+  previewScroller.apply();
+  mainScroller.apply();
+  if (homeFloatVisible) {
+    applyStylesToViewport(homePreviewViewport);
+    homeFloatScroller.measure();
+    homeFloatScroller.apply();
+  }
+}
+
+/* =========================================================
+   控件绑定
+   ========================================================= */
+function bindSlider(slider, mirrorSlider, valueEl, mirrorValueEl, key, cb) {
+  const handler = (e) => {
+    const val = Number(e.target.value);
+    if (Number.isNaN(val)) return;
+    state[key] = val;
+    valueEl.textContent = val;
+    if (mirrorSlider) mirrorSlider.value = val;
+    if (mirrorValueEl) mirrorValueEl.textContent = val;
+    cb && cb();
+  };
+  slider.addEventListener('input', handler);
+  if (mirrorSlider) mirrorSlider.addEventListener('input', handler);
+}
+
+bindSlider(speedSlider, fsSpeedSlider, speedValue, fsSpeedValue, 'speed');
+bindSlider(fontSlider, fsFontSlider, fontValue, fsFontValue, 'fontSize', () => applyStyles());
+
+function bindMarginSlider(slider, mirrorSlider, valueEl, mirrorValueEl) {
+  const handler = (e) => {
+    const val = Number(e.target.value);
+    if (Number.isNaN(val)) return;
+    state.textWidth = val;
+    valueEl.textContent = val + '%';
+    if (mirrorSlider) mirrorSlider.value = val;
+    if (mirrorValueEl) mirrorValueEl.textContent = val + '%';
+    applyStyles();
+  };
+  slider.addEventListener('input', handler);
+  if (mirrorSlider) mirrorSlider.addEventListener('input', handler);
+}
+bindMarginSlider(marginSlider, fsMarginSlider, marginValue, fsMarginValue);
+
+function bindColor(input, mirrorInput, key, cb) {
+  const handler = (e) => {
+    state[key] = e.target.value;
+    if (mirrorInput) mirrorInput.value = e.target.value;
+    cb && cb();
+  };
+  input.addEventListener('input', handler);
+  if (mirrorInput) mirrorInput.addEventListener('input', handler);
+}
+bindColor(textColorInput, fsTextColor, 'textColor', () => applyStyles());
+bindColor(guideColorInput, fsGuideColor, 'guideColor', () => applyStyles());
+
+const customFontFileInput = document.getElementById('customFontFileInput');
+let lastFontFamilyValue = fontFamilySelect.value || 'mono';
+
+fontFamilySelect.addEventListener('change', (e) => {
+  const val = e.target.value;
+
+  if (val === 'custom') {
+    // 点击“自定义字体”不切换，先打开文件选择
+    customFontFileInput.click();
+    // 把下拉框恢复到上一个值，等文件导入成功后再切到 custom
+    requestAnimationFrame(() => {
+      fontFamilySelect.value = lastFontFamilyValue;
+    });
+    return;
+  }
+
+  lastFontFamilyValue = val;
+  state.fontFamily = val;
+  applyStyles();
+});
+
+customFontFileInput.addEventListener('change', async () => {
+  const file = customFontFileInput.files && customFontFileInput.files[0];
+  customFontFileInput.value = '';
+  if (!file) return;
+
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (!FONT_EXT.includes(ext)) {
+    toast('请选择 ttf / otf / woff / woff2 字体文件');
+    return;
+  }
+
+  await importFontFile(file);
+  // importFontFile 内部已经把 fontFamilySelect.value 设为 'custom'，
+  // 同步更新 lastFontFamilyValue，避免下次点 custom 又被弹回旧值
+  lastFontFamilyValue = 'custom';
+});
+
+function bindChip(chip, onChange) {
+  if (!chip) return;
+  chip.addEventListener('change', () => requestAnimationFrame(() => onChange(!!chip.selected)));
+}
+bindChip(chipGuide, (v) => { state.showGuide = v; applyStyles(); });
+bindChip(chipMirror, (v) => { state.mirror = v; applyStyles(); });
+bindChip(chipIndent, (v) => { state.firstLineIndent = v; applyStyles(); });
+bindChip(chipAutoExit, (v) => { state.autoExit = v; });
+bindChip(chipNoKeys, (v) => { state.disableKeys = v; });
+
+editorField.addEventListener('input', scheduleTextUpdate);
+
+/* =========================================================
+   全屏设置面板
+   ========================================================= */
+function openFsPanel() { fsPanel.classList.add('open'); }
+function closeFsPanel() { fsPanel.classList.remove('open'); }
+function toggleFsPanel() { fsPanel.classList.toggle('open'); }
+fsMenuBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFsPanel(); });
+fsPanelCloseBtn.addEventListener('click', () => closeFsPanel());
+
+/* =========================================================
+   全屏
+   ========================================================= */
+async function enterFullscreen() {
+  if (isFullscreen) return;
+  dismissGuide();
+  stopAllAutoScroll();
+
+  fsRoot.classList.add('active');
+  document.body.classList.add('fs-active');
+  closeFsPanel();
+  endDialog.open = false;
+
+  try {
+    if (fsRoot.requestFullscreen) await fsRoot.requestFullscreen({ navigationUI: 'hide' });
+    else if (fsRoot.webkitRequestFullscreen) fsRoot.webkitRequestFullscreen();
+  } catch (err) { console.warn('全屏 API 调用失败，降级', err); }
+
+  isFullscreen = true;
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    mainScroller.measure();
+    mainScroller.reset();
+    mainScroller.playing = true;
+    lastTs = 0;
+  }));
+
+  try {
+    if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+  } catch (_) {}
+}
+
+function cleanupFullscreen() {
+  if (!isFullscreen) return;
+  isFullscreen = false;
+  mainScroller.playing = false;
+  wheelTimer && clearTimeout(wheelTimer);
+  wheelTimer = null;
+  closeFsPanel();
+  endDialog.open = false;
+  fsRoot.classList.remove('active');
+  document.body.classList.remove('fs-active');
+  try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (_) {}
+}
+
+function exitFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  cleanupFullscreen();
+}
+
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) cleanupFullscreen(); });
+document.addEventListener('webkitfullscreenchange', () => { if (!document.webkitFullscreenElement) cleanupFullscreen(); });
+
+startBtn.addEventListener('click', enterFullscreen);
+fsExitBtn.addEventListener('click', exitFullscreen);
+
+/* =========================================================
+   全屏拖动
+   ========================================================= */
+let dragState = null;
+
+fsViewport.addEventListener('pointerdown', (e) => {
+  if (!isFullscreen || endDialog.open) return;
+  e.preventDefault();
+  try { fsViewport.setPointerCapture(e.pointerId); } catch (_) {}
+  dragState = { id: e.pointerId, startY: e.clientY, startPos: mainScroller.position };
+  mainScroller.playing = false;
+  fsViewport.classList.add('dragging');
+});
+fsViewport.addEventListener('pointermove', (e) => {
+  if (!dragState || e.pointerId !== dragState.id) return;
+  e.preventDefault();
+  mainScroller.setPosition(dragState.startPos - (e.clientY - dragState.startY));
+});
+function endDrag(e) {
+  if (!dragState || (e && e.pointerId !== dragState.id)) return;
+  dragState = null;
+  fsViewport.classList.remove('dragging');
+  mainScroller.playing = true;
+  lastTs = 0;
+}
+fsViewport.addEventListener('pointerup', endDrag);
+fsViewport.addEventListener('pointercancel', endDrag);
+fsViewport.addEventListener('pointerleave', (e) => { if (dragState && e.buttons === 0) endDrag(e); });
+
+/* =========================================================
+   滚轮
+   ========================================================= */
+let wheelTimer = null, wheelWasPlaying = false;
+
+fsViewport.addEventListener('wheel', (e) => {
+  if (!isFullscreen || endDialog.open) return;
+  e.preventDefault();
+  if (!wheelTimer) wheelWasPlaying = mainScroller.playing;
+  mainScroller.playing = false;
+  let delta = e.deltaY;
+  if (e.deltaMode === 1) delta *= state.fontSize * 1.5;
+  else if (e.deltaMode === 2) delta *= window.innerHeight;
+  mainScroller.nudge(delta);
+  clearTimeout(wheelTimer);
+  wheelTimer = setTimeout(() => {
+    wheelTimer = null;
+    if (wheelWasPlaying && !dragState && !endDialog.open) {
+      mainScroller.playing = true;
+      lastTs = 0;
+    }
+  }, 700);
+}, { passive: false });
+
+/* =========================================================
+   键盘
+   ========================================================= */
+function togglePlay() {
+  mainScroller.playing = !mainScroller.playing;
+  lastTs = 0;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!isFullscreen || state.disableKeys) return;
+  if (endDialog.open) {
+    if (e.key === 'Escape') { e.preventDefault(); endDialog.open = false; }
+    return;
+  }
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) {
+    if (e.key !== 'Escape') return;
+  }
+  const lineH = state.fontSize * 1.5;
+  switch (e.key) {
+    case ' ': case 'Spacebar': e.preventDefault(); togglePlay(); break;
+    case 'ArrowUp': case 'ArrowLeft': case 'PageUp': e.preventDefault(); mainScroller.nudge(-lineH * 2); break;
+    case 'ArrowDown': case 'ArrowRight': case 'PageDown': e.preventDefault(); mainScroller.nudge(lineH * 2); break;
+    case 'r': case 'R': e.preventDefault(); mainScroller.reset(); break;
+    case 'Escape': exitFullscreen(); break;
+  }
+});
+
+/* =========================================================
+   拖拽文件涟漪
+   ========================================================= */
+let rippleDragDepth = 0, ripplePhase = 'idle', rippleRaf = 0;
+let rippleCX = 0, rippleCY = 0, rippleR = 0;
+let rippleStartR = 0, rippleStartCX = 0, rippleStartCY = 0;
+let rippleTargetX = 0, rippleTargetY = 0;
+let rippleStartTime = 0;
+let glowTimer = null, rippleDelayTimer = null;
+let lastDragX = 0, lastDragY = 0, lastDragT = 0;
+let velocityX = 0, velocityY = 0;
+
+const VELOCITY_SMOOTH = 0.5, MIN_SPEED = 150;
+const RIPPLE_DELAY_MS = 80, RIPPLE_EXPAND_MS = 720, RIPPLE_SHRINK_MS = 520, RIPPLE_COLLAPSE_MS = 640, GLOW_DELAY_MS = 100;
+
+function resetVelocity() { velocityX = 0; velocityY = 0; lastDragT = 0; }
+function rippleMaxRadius(x, y) {
+  const w = window.innerWidth, h = window.innerHeight;
+  return Math.max(Math.hypot(x, y), Math.hypot(w - x, y), Math.hypot(x, h - y), Math.hypot(w - x, h - y));
+}
+function easeOutExpo(t) { return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t); }
+function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+const EDGE_FEATHER = 2;
+let rippleLastClip = '';
+function applyRippleMask() {
+  const r = Math.max(0, rippleR);
+  // collapse 阶段是"反向涟漪"，用圆形容器自身做遮罩，不做反向 clip；
+  // 这里统一用正向 clip，collapse 时通过 resetRipple 的淡出来收尾
+  const clip = `circle(${r}px at ${rippleCX}px ${rippleCY}px)`;
+  if (clip === rippleLastClip) return;
+  rippleLastClip = clip;
+  dropRippleMask.style.clipPath = clip;
+}
+function resetRipple() {
+  ripplePhase = 'idle'; rippleRaf = 0; rippleStartTime = 0;
+  rippleLastClip = '';
+  dropRipple.classList.remove('visible', 'covered');
+}
+function rippleLoop(ts) {
+  if (ripplePhase === 'idle') { rippleRaf = 0; rippleStartTime = 0; return; }
+  if (!rippleStartTime) rippleStartTime = ts;
+  const elapsed = ts - rippleStartTime;
+  if (ripplePhase === 'expand') {
+    const t = Math.min(1, elapsed / RIPPLE_EXPAND_MS);
+    rippleR = easeOutExpo(t) * (rippleMaxRadius(rippleCX, rippleCY) + 60);
+    applyRippleMask();
+    if (t >= 1) { ripplePhase = 'hold'; rippleRaf = 0; rippleStartTime = 0; return; }
+  } else if (ripplePhase === 'hold') { rippleRaf = 0; return; }
+  else if (ripplePhase === 'shrink') {
+    const t = Math.min(1, elapsed / RIPPLE_SHRINK_MS);
+    const eased = easeInOutCubic(t);
+    rippleCX = rippleStartCX + (rippleTargetX - rippleStartCX) * eased;
+    rippleCY = rippleStartCY + (rippleTargetY - rippleStartCY) * eased;
+    rippleR = rippleStartR * (1 - eased);
+    applyRippleMask();
+    if (t >= 1) { resetRipple(); return; }
+  } else if (ripplePhase === 'collapse') {
+    const maxR = rippleMaxRadius(rippleCX, rippleCY) + 90;
+    const t = Math.min(1, elapsed / RIPPLE_COLLAPSE_MS);
+    rippleR = easeOutExpo(t) * maxR;
+    applyRippleMask();
+    if (t >= 1) { resetRipple(); return; }
+  }
+  rippleRaf = requestAnimationFrame(rippleLoop);
+}
+function startRippleExpand(x, y) {
+  if (glowTimer) { clearTimeout(glowTimer); glowTimer = null; }
+  ripplePhase = 'expand';
+  rippleCX = x; rippleCY = y; rippleR = 0; rippleStartTime = 0; rippleLastClip = '';
+  lastDragX = x; lastDragY = y; resetVelocity();
+  dropRipple.classList.add('visible');
+  dropRipple.classList.remove('covered');
+  dropCursorGlow.style.left = x + 'px';
+  dropCursorGlow.style.top = y + 'px';
+  applyRippleMask();
+  if (!rippleRaf) rippleRaf = requestAnimationFrame(rippleLoop);
+  glowTimer = setTimeout(() => {
+    glowTimer = null;
+    if (ripplePhase === 'expand' || ripplePhase === 'hold') dropRipple.classList.add('covered');
+  }, GLOW_DELAY_MS);
+}
+function updateRippleCursor(x, y) {
+  if (ripplePhase === 'expand' || ripplePhase === 'hold') {
+    dropCursorGlow.style.left = x + 'px';
+    dropCursorGlow.style.top = y + 'px';
+  }
+}
+function startRippleShrink() {
+  if (ripplePhase === 'idle') { dropRipple.classList.remove('visible', 'covered'); return; }
+  if (glowTimer) { clearTimeout(glowTimer); glowTimer = null; }
+  rippleStartCX = rippleCX; rippleStartCY = rippleCY; rippleStartR = rippleR;
+  let ux = 0, uy = 0, hasDir = false;
+  const speed = Math.hypot(velocityX, velocityY);
+  if (speed >= MIN_SPEED) { ux = velocityX / speed; uy = velocityY / speed; hasDir = true; }
+  if (!hasDir) {
+    const dx = lastDragX - rippleStartCX, dy = lastDragY - rippleStartCY;
+    const len = Math.hypot(dx, dy);
+    if (len >= 8) { ux = dx / len; uy = dy / len; hasDir = true; }
+  }
+  if (!hasDir) {
+    const w = window.innerWidth, h = window.innerHeight;
+    const dL = lastDragX, dR = w - lastDragX, dT = lastDragY, dB = h - lastDragY;
+    const minD = Math.min(dL, dR, dT, dB);
+    if (minD === dL) { ux = -1; uy = 0; } else if (minD === dR) { ux = 1; uy = 0; }
+    else if (minD === dT) { ux = 0; uy = -1; } else { ux = 0; uy = 1; }
+  }
+  const screenDiag = Math.hypot(window.innerWidth, window.innerHeight);
+  const slideDist = Math.max(screenDiag * 0.5, rippleStartR * 0.8, 200);
+  rippleTargetX = rippleStartCX + ux * slideDist;
+  rippleTargetY = rippleStartCY + uy * slideDist;
+  ripplePhase = 'shrink'; rippleStartTime = 0;
+  dropRipple.classList.remove('covered');
+  applyRippleMask();
+  if (!rippleRaf) rippleRaf = requestAnimationFrame(rippleLoop);
+}
+function startRippleCollapse(x, y) {
+  if (ripplePhase === 'idle') { dropRipple.classList.remove('visible', 'covered'); return; }
+  if (glowTimer) { clearTimeout(glowTimer); glowTimer = null; }
+  ripplePhase = 'collapse'; rippleCX = x; rippleCY = y; rippleR = 0; rippleStartTime = 0; rippleLastClip = '';
+  dropRipple.classList.remove('covered');
+  applyRippleMask();
+  if (!rippleRaf) rippleRaf = requestAnimationFrame(rippleLoop);
+}
+function isFileDrag(e) {
+  const dt = e.dataTransfer;
+  if (!dt || !dt.types) return false;
+  for (let i = 0; i < dt.types.length; i++) if (dt.types[i] === 'Files') return true;
+  return false;
+}
+window.addEventListener('dragenter', (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  rippleDragDepth++;
+  if (rippleDragDepth === 1) {
+    const startX = e.clientX, startY = e.clientY;
+    if (rippleDelayTimer) clearTimeout(rippleDelayTimer);
+    rippleDelayTimer = setTimeout(() => {
+      rippleDelayTimer = null;
+      startRippleExpand(startX, startY);
+    }, RIPPLE_DELAY_MS);
+  }
+});
+window.addEventListener('dragover', (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  const now = performance.now();
+  if (lastDragT > 0) {
+    const dt = (now - lastDragT) / 1000;
+    if (dt > 0.001 && dt < 0.3) {
+      velocityX = velocityX * VELOCITY_SMOOTH + ((e.clientX - lastDragX) / dt) * (1 - VELOCITY_SMOOTH);
+      velocityY = velocityY * VELOCITY_SMOOTH + ((e.clientY - lastDragY) / dt) * (1 - VELOCITY_SMOOTH);
+    }
+  }
+  lastDragT = now; lastDragX = e.clientX; lastDragY = e.clientY;
+  updateRippleCursor(e.clientX, e.clientY);
+});
+window.addEventListener('dragleave', (e) => {
+  if (!isFileDrag(e)) return;
+  rippleDragDepth = Math.max(0, rippleDragDepth - 1);
+  if (rippleDragDepth === 0) {
+    if (rippleDelayTimer) { clearTimeout(rippleDelayTimer); rippleDelayTimer = null; return; }
+    startRippleShrink();
+  }
+});
+window.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  rippleDragDepth = 0;
+  if (rippleDelayTimer) { clearTimeout(rippleDelayTimer); rippleDelayTimer = null; }
+  startRippleCollapse(e.clientX, e.clientY);
+  const files = e.dataTransfer && e.dataTransfer.files;
+  if (files && files.length) await importFile(files[0]);
+});
+window.addEventListener('resize', () => {
+  if (ripplePhase === 'expand' || ripplePhase === 'hold') {
+    rippleR = rippleMaxRadius(rippleCX, rippleCY) + 60;
+    applyRippleMask();
+  }
+});
+
+/* =========================================================
+   文件导入
+   ========================================================= */
+const TEXT_EXT = ['txt', 'md', 'markdown', 'text'];
+const FONT_EXT = ['ttf', 'otf', 'woff', 'woff2'];
+
+let mammothPromise = null;
+function ensureMammoth() {
+  if (window.mammoth) return Promise.resolve();
+  if (mammothPromise) return mammothPromise;
+  mammothPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('无法加载 docx 解析库'));
+    document.head.appendChild(s);
+  });
+  return mammothPromise;
+}
+let jszipPromise = null;
+function ensureJSZip() {
+  if (window.JSZip) return Promise.resolve();
+  if (jszipPromise) return jszipPromise;
+  jszipPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('无法加载 odt 解析库'));
+    document.head.appendChild(s);
+  });
+  return jszipPromise;
+}
+function extractOdtText(xmlString) {
+  const doc = new DOMParser().parseFromString(xmlString, 'application/xml');
+  if (doc.querySelector('parsererror')) throw new Error('ODT 内容解析失败');
+  const TEXT_NS = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
+  const lines = [];
+  const all = doc.getElementsByTagName('*');
+  for (let i = 0; i < all.length; i++) {
+    if (all[i].localName === 'p' || all[i].localName === 'h') lines.push(readNode(all[i], TEXT_NS));
+  }
+  return lines.join('\n');
+}
+function readNode(el, TEXT_NS) {
+  let out = '';
+  const kids = el.childNodes;
+  for (let i = 0; i < kids.length; i++) {
+    const c = kids[i];
+    if (c.nodeType === 3) out += c.nodeValue;
+    else if (c.nodeType === 1) {
+      const ln = c.localName;
+      if (ln === 's') {
+        const n = parseInt(c.getAttributeNS(TEXT_NS, 'c') || '1', 10);
+        out += ' '.repeat(Number.isNaN(n) ? 1 : n);
+      } else if (ln === 'tab') out += '\t';
+      else if (ln === 'line-break') out += '\n';
+      else out += readNode(c, TEXT_NS);
+    }
+  }
+  return out;
+}
+function toast(message) {
+  try { mdui.snackbar({ message, placement: 'bottom' }); } catch (_) { console.log(message); }
+}
+async function detectFileKind(file) {
+  const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer());
+  if (head.length === 0) return 'text';
+  if (head[0] === 0x50 && head[1] === 0x4B &&
+      (head[2] === 0x03 || head[2] === 0x05 || head[2] === 0x07) &&
+      (head[3] === 0x04 || head[3] === 0x06 || head[3] === 0x08)) {
+    try {
+      await ensureJSZip();
+      const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
+      const mimetypeFile = zip.file('mimetype');
+      if (mimetypeFile) {
+        const mime = await mimetypeFile.async('string');
+        if (mime.indexOf('opendocument.text') !== -1) return 'odt';
+      }
+      if (zip.file('word/document.xml')) return 'docx';
+      return 'unknown';
+    } catch (e) { console.error('ZIP 解析失败', e); return 'unknown'; }
+  }
+  if (head.length >= 8 && head[0] === 0xD0 && head[1] === 0xCF && head[2] === 0x11 && head[3] === 0xE0 &&
+      head[4] === 0xA1 && head[5] === 0xB1 && head[6] === 0x1A && head[7] === 0xE1) return 'doc';
+  if (head.length >= 4) {
+    if (head[0] === 0x00 && head[1] === 0x01 && head[2] === 0x00 && head[3] === 0x00) return 'font';
+    if (head[0] === 0x4F && head[1] === 0x54 && head[2] === 0x54 && head[3] === 0x4F) return 'font';
+    if (head[0] === 0x77 && head[1] === 0x4F && head[2] === 0x46 && head[3] === 0x46) return 'font';
+    if (head[0] === 0x77 && head[1] === 0x4F && head[2] === 0x46 && head[3] === 0x32) return 'font';
+  }
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(head);
+    let ctrlCount = 0;
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      if (code < 0x20 && code !== 0x09 && code !== 0x0A && code !== 0x0D) ctrlCount++;
+    }
+    if (ctrlCount / text.length < 0.01) return 'text';
+  } catch (_) {}
+  return 'unknown';
+}
+async function importFontFile(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const familyName = 'UserFont_' + baseName + '_' + Date.now();
+    const fontFace = new FontFace(familyName, buffer);
+    await fontFace.load();
+    document.fonts.add(fontFace);
+    state.customFontFamily = familyName;
+    customFontOption.textContent = '自定义：' + baseName;
+        requestAnimationFrame(() => {
+      fontFamilySelect.value = '';
+      fontFamilySelect.value = 'custom';
+      lastFontFamilyValue = 'custom';
+      state.fontFamily = 'custom';
+      applyStyles();
+    });
+    toast('字体已加载：' + file.name);
+  } catch (err) {
+    console.error(err);
+    toast('字体加载失败：' + (err.message || err));
+  }
+}
+async function importDocxFile(file) {
+  await ensureMammoth();
+  const result = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+  editorField.value = result.value || '';
+  updateText(); mainScroller.reset();
+  toast('已导入：' + file.name);
+}
+async function importOdtFile(file) {
+  await ensureJSZip();
+  const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
+  const contentFile = zip.file('content.xml');
+  if (!contentFile) throw new Error('无效的 ODT 文件');
+  editorField.value = extractOdtText(await contentFile.async('string'));
+  updateText(); mainScroller.reset();
+  toast('已导入：' + file.name);
+}
+async function importFile(file) {
+  if (!file) return;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  let kind = 'unknown';
+  try { kind = await detectFileKind(file); } catch (err) { console.error('检测文件类型失败', err); }
+  if (kind === 'unknown') {
+    if (TEXT_EXT.includes(ext)) kind = 'text';
+    else if (ext === 'docx') kind = 'docx';
+    else if (ext === 'odt') kind = 'odt';
+    else if (ext === 'doc') kind = 'doc';
+    else if (FONT_EXT.includes(ext)) kind = 'font';
+  }
+  try {
+    switch (kind) {
+      case 'text': {
+        try { editorField.value = await file.text(); }
+        catch (_) { editorField.value = new TextDecoder('utf-8').decode(await file.arrayBuffer()); }
+        updateText(); mainScroller.reset();
+        toast('已导入：' + file.name);
+        return;
+      }
+      case 'docx': await importDocxFile(file); return;
+      case 'odt': await importOdtFile(file); return;
+      case 'doc':
+        toast('检测到老式 Office 二进制格式（如 .doc），无法解析，请先另存为 .docx 后再导入');
+        return;
+      case 'font': await importFontFile(file); return;
+      default:
+        try { editorField.value = await file.text(); }
+        catch (_) { editorField.value = new TextDecoder('utf-8').decode(await file.arrayBuffer()); }
+        updateText(); mainScroller.reset();
+        toast('已按文本导入：' + file.name);
+        return;
+    }
+  } catch (err) {
+    console.error(err);
+    toast('导入失败：' + (err.message || err));
+  }
+}
+importBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files && fileInput.files[0];
+  fileInput.value = '';
+  if (file) await importFile(file);
+});
+
+/* =========================================================
+   首次引导
+   ========================================================= */
+const GUIDE_KEY = 'mdui-prompter-guide-dismissed-v1';
+function isGuideDismissed() {
+  try { return localStorage.getItem(GUIDE_KEY) === '1'; } catch (_) { return false; }
+}
+function dismissGuide() {
+  try { localStorage.setItem(GUIDE_KEY, '1'); } catch (_) {}
+  guideOverlay.classList.remove('show');
+  guideOverlay.hidden = true;
+}
+function updateGuidePosition() {
+  if (guideOverlay.hidden) return;
+  const rect = startBtn.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  guideGlow.style.left = cx + 'px';
+  guideGlow.style.top = cy + 'px';
+  const glowRadius = 90;
+  const arrowTop = cy + glowRadius + 12;
+  guideArrow.style.left = cx + 'px';
+  guideArrow.style.top = arrowTop + 'px';
+  const textTop = arrowTop + 18 + 12;
+  guideText.style.top = textTop + 'px';
+  guideText.style.left = '0px';
+  guideText.style.right = 'auto';
+  guideText.style.transform = 'translateX(-50%)';
+  const textW = guideText.offsetWidth;
+  const textLeft = cx - textW / 2;
+  const textRight = cx + textW / 2;
+  if (textRight > window.innerWidth - 16) {
+    guideText.style.left = 'auto'; guideText.style.right = '16px'; guideText.style.transform = 'none';
+  } else if (textLeft < 16) {
+    guideText.style.left = '16px'; guideText.style.right = 'auto'; guideText.style.transform = 'none';
+  }
+}
+function showGuide() {
+  guideOverlay.hidden = false;
+  requestAnimationFrame(() => { guideOverlay.classList.add('show'); updateGuidePosition(); });
+}
+window.addEventListener('resize', updateGuidePosition, { passive: true });
+window.addEventListener('scroll', updateGuidePosition, { passive: true });
+guideOverlay.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); dismissGuide(); });
+function maybeShowGuide() {
+  if (isGuideDismissed()) return;
+  requestAnimationFrame(() => requestAnimationFrame(() => { showGuide(); }));
+}
+
+window.addEventListener('resize', () => {
+  previewScroller.measure();
+  mainScroller.measure();
+});
+
+/* =========================================================
+   初始化
+   ========================================================= */
+editorField.value = `欢迎使用提词器。
+
+点击顶栏的「开始提词」按钮进入全屏，文本会自动从下往上滚动。
+
+【全屏操作】
+· 鼠标滚轮 —— 滚动文本（滚动时暂停，停手后继续）
+· 按住 / 触摸拖动文本 —— 立即暂停，松手后继续
+· 空格 —— 暂停 / 继续
+· ↑ / ← / PgUp —— 向上翻 2 行
+· ↓ / → / PgDn —— 向下翻 2 行
+· R —— 重置回起始位置
+· ESC —— 退出全屏
+
+【导入】
+· 文档：txt / md / docx / odt
+· 字体：ttf / otf / woff / woff2
+· 点击顶栏的「导入」图标按钮，或直接把文件拖入页面
+
+【字体与文本宽度】
+· 字体设置在首页底部的「字体更换」按钮里
+· 文本宽度滑块可调节左右页边距（10% ~ 100%）`;
+
+updateText();
+applyStyles();
+previewScroller.playing = true;
+bindHomeFloatTriggers();
+
+/* =========================================================
+   字体副页面一镜到底（可中断 + 任意方向滑动返回）
+   ========================================================= */
+(function initFontPageMorph() {
+  const fontTriggerWrap = document.getElementById('fontTriggerWrap');
+  const fontBtn = document.getElementById('fontBtn');
+  const fontCloseBtn = document.getElementById('fontCloseBtn');
+  const fontPageB = document.getElementById('fontPageB');
+  const fontPageBContent = fontPageB.querySelector('.font-pageB-content');
+  if (!fontBtn || !fontPageB || !fontCloseBtn) return;
+
+  const DURATION = prefersReducedMotion ? 0 : 650;
+  const RADIUS_TAIL = prefersReducedMotion ? 0 : 260;
+  const RADIUS_DELAY = prefersReducedMotion ? 0 : 120;
+  const RADIUS_HOLD = prefersReducedMotion ? 0 : 48;
+  const RADIUS_LEAD = prefersReducedMotion ? 0 : 80;
+  const RIPPLE_WAIT = prefersReducedMotion ? 0 : 100;
+  const FADE = prefersReducedMotion ? 0 : 80;
+  const EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
+  const FALLBACK_COLOR = '#006463';
+  const SCROLL_CANCEL_PX = 24;
+
+  let morphState = 'idle';
+  let press = null;
+  let animToken = 0;
+  let radiusTimer = null;
+  let morphLayer = null;
+  let lastEndPressTime = 0;
+  let gestureClosing = false;
+
+  /* 滚动锁定：防止字体页滑动穿透到底层 */
+  let savedHtmlOverflow = '';
+  let savedBodyOverflow = '';
+  function lockBodyScroll() {
+    savedHtmlOverflow = document.documentElement.style.overflow;
+    savedBodyOverflow = document.body.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+  function unlockBodyScroll() {
+    document.documentElement.style.overflow = savedHtmlOverflow;
+    document.body.style.overflow = savedBodyOverflow;
+  }
+
+  function getButtonColor() {
+    const cs = getComputedStyle(fontBtn);
+    let bg = cs.backgroundColor;
+    if (!bg || bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)') {
+      const primary = getComputedStyle(document.body).getPropertyValue('--mdui-color-primary').trim();
+      bg = primary ? (primary.startsWith('rgb') ? primary : `rgb(${primary})`) : FALLBACK_COLOR;
+    }
+    return bg;
+  }
+  function getSurfaceColor() {
+    const raw = getComputedStyle(document.body).getPropertyValue('--mdui-color-surface').trim();
+    if (!raw) return '#ffffff';
+    return raw.startsWith('rgb') ? raw : `rgb(${raw})`;
+  }
+  function getButtonRadius(rect) {
+    const cs = getComputedStyle(fontBtn);
+    const m = (cs.borderRadius || '0px').match(/([\d.]+)px/);
+    let rpx = m ? parseFloat(m[1]) : 0;
+    const maxR = Math.min(rect.width, rect.height) / 2;
+    if (rpx > maxR) rpx = maxR;
+    return rpx + 'px';
+  }
+  function ensureLayer() {
+    if (morphLayer) return morphLayer;
+    morphLayer = document.getElementById('morphLayer') || document.createElement('div');
+    morphLayer.id = 'morphLayer';
+    if (!morphLayer.parentNode) document.body.appendChild(morphLayer);
+    return morphLayer;
+  }
+  function setRect(el, rect, radius) {
+    el.style.left = rect.left + 'px';
+    el.style.top = rect.top + 'px';
+    el.style.width = rect.width + 'px';
+    el.style.height = rect.height + 'px';
+    el.style.borderRadius = radius;
+  }
+  function sizeTransition() {
+    return [
+      `left ${DURATION}ms ${EASING}`, `top ${DURATION}ms ${EASING}`,
+      `width ${DURATION}ms ${EASING}`, `height ${DURATION}ms ${EASING}`
+    ].join(', ');
+  }
+  function radiusTransition(delay) { return `border-radius ${RADIUS_TAIL}ms ${EASING} ${delay}ms`; }
+  function clearRadiusTimer() { if (radiusTimer) { clearTimeout(radiusTimer); radiusTimer = null; } }
+  function currentMorphRect() {
+    const el = ensureLayer();
+    const r = el.getBoundingClientRect();
+    const radius = parseFloat(getComputedStyle(el).borderRadius) || 0;
+    return { left: r.left, top: r.top, width: r.width, height: r.height, radius: radius + 'px' };
+  }
+  function waitSize(el) {
+    return new Promise((resolve) => {
+      if (DURATION === 0) { resolve(); return; }
+      let done = false;
+      const finish = () => { if (done) return; done = true; el.removeEventListener('transitionend', handler); resolve(); };
+      const handler = (e) => { if (e.target === el && e.propertyName === 'width') finish(); };
+      el.addEventListener('transitionend', handler);
+      setTimeout(finish, DURATION + 150);
+    });
+  }
+
+  async function openAnim() {
+    const token = ++animToken;
+    morphState = 'opening';
+    clearRadiusTimer();
+    clearGestureStyles();
+    gestureClosing = false;
+
+    const rect = fontBtn.getBoundingClientRect();
+    const bg = getButtonColor();
+    const surface = getSurfaceColor();
+    const radius = getButtonRadius(rect);
+    const el = ensureLayer();
+
+    el.style.transition = 'none';
+    el.style.display = 'block';
+    el.style.background = bg;
+    el.style.opacity = '0';
+    setRect(el, rect, radius);
+    void el.offsetWidth;
+
+    await new Promise((r) => setTimeout(r, RIPPLE_WAIT));
+    if (token !== animToken) return;
+
+    el.classList.add('visible');
+    el.style.transition = `opacity ${FADE}ms ease`;
+    el.style.opacity = '1';
+    await new Promise((r) => setTimeout(r, FADE));
+    if (token !== animToken) return;
+
+    el.style.transition = sizeTransition() + ', ' + radiusTransition(RADIUS_DELAY) + `, background-color ${DURATION}ms ${EASING}`;
+    requestAnimationFrame(() => {
+      if (token !== animToken) return;
+      el.style.left = '0px';
+      el.style.top = '0px';
+      el.style.width = window.innerWidth + 'px';
+      el.style.height = window.innerHeight + 'px';
+      el.style.borderRadius = RADIUS_HOLD + 'px';
+      el.style.background = surface;
+    });
+
+    radiusTimer = setTimeout(() => {
+      if (token !== animToken) return;
+      el.style.transition = radiusTransition(0);
+      el.style.borderRadius = '0px';
+    }, DURATION - RADIUS_LEAD);
+
+    await waitSize(el);
+    if (token !== animToken) return;
+
+    morphState = 'open';
+    document.body.classList.add('font-page-open');
+    lockBodyScroll();
+    fontPageB.classList.add('active');
+    fontPageB.setAttribute('aria-hidden', 'false');
+    if (!history.state || !history.state.fontPage) {
+      history.pushState({ fontPage: true }, '', '#font');
+    }
+    requestAnimationFrame(() => { if (token === animToken) fontPageB.classList.add('content-in'); });
+    el.style.transition = 'opacity 280ms ease';
+    el.style.opacity = '0';
+    setTimeout(() => {
+      if (token !== animToken) return;
+      el.style.display = 'none';
+      el.classList.remove('visible');
+    }, 300);
+    fontCloseBtn.focus({ preventScroll: true });
+  }
+
+  async function closeAnim(fromInterrupt = false) {
+    // 如果历史栈里还有 fontPage，先回退，由 popstate 统一触发关闭
+    if (history.state && history.state.fontPage) {
+      history.back();
+      return;
+    }
+    const token = ++animToken;
+    morphState = 'closing';
+    clearRadiusTimer();
+    document.body.classList.remove('font-page-open');
+    unlockBodyScroll();
+    clearGestureStyles();
+
+    const el = ensureLayer();
+    fontPageB.classList.remove('content-in');
+    fontPageB.classList.remove('active');
+    fontPageB.setAttribute('aria-hidden', 'true');
+
+    const rect = fontBtn.getBoundingClientRect();
+    const bg = getButtonColor();
+    const surface = getSurfaceColor();
+    const radius = getButtonRadius(rect);
+
+    el.style.transition = 'none';
+    el.style.display = 'block';
+    el.style.opacity = '1';
+
+    if (fromInterrupt) {
+      const cur = currentMorphRect();
+      el.style.background = getComputedStyle(el).backgroundColor;
+      setRect(el, cur, cur.radius);
+    } else {
+      el.style.background = surface;
+      el.style.left = '0px';
+      el.style.top = '0px';
+      el.style.width = window.innerWidth + 'px';
+      el.style.height = window.innerHeight + 'px';
+      el.style.borderRadius = '0px';
+    }
+    void el.offsetWidth;
+
+    el.classList.add('visible');
+    el.style.transition = sizeTransition() + ', ' + radiusTransition(RADIUS_DELAY)
+      + `, background-color ${DURATION * 2}ms ${EASING}`;
+    requestAnimationFrame(() => {
+      if (token !== animToken) return;
+      el.style.left = rect.left + 'px';
+      el.style.top = rect.top + 'px';
+      el.style.width = rect.width + 'px';
+      el.style.height = rect.height + 'px';
+      el.style.borderRadius = radius;
+      el.style.background = bg;
+    });
+
+    await waitSize(el);
+    if (token !== animToken) return;
+
+    // 尺寸缩回后立即淡出，露出按钮文字
+    el.style.transition = 'opacity 180ms ease';
+    el.style.opacity = '0';
+    await new Promise((r) => setTimeout(r, 200));
+    if (token !== animToken) return;
+
+    el.style.display = 'none';
+    el.style.transition = '';
+    el.classList.remove('visible');
+    morphState = 'idle';
+    fontBtn.focus({ preventScroll: true });
+  }
+  function cancelAnim() {
+    animToken++;
+    morphState = 'idle';
+    clearRadiusTimer();
+    document.body.classList.remove('font-page-open');
+    unlockBodyScroll();
+    const el = ensureLayer();
+    el.style.transition = 'opacity 120ms ease';
+    el.style.opacity = '0';
+    setTimeout(() => {
+      el.style.display = 'none';
+      el.classList.remove('visible');
+      fontBtn.focus({ preventScroll: true });
+    }, 140);
+  }
+
+  function interrupt() {
+    if (morphState === 'opening') {
+      const el = ensureLayer();
+      const btnRect = fontBtn.getBoundingClientRect();
+      const layerRect = el.getBoundingClientRect();
+      const notExpanded =
+        Math.abs(layerRect.width  - btnRect.width)  < 5 &&
+        Math.abs(layerRect.height - btnRect.height) < 5;
+      if (notExpanded) cancelAnim();
+      else closeAnim(true);
+    } else if (morphState === 'closing') {
+      openAnim();
+    }
+  }
+
+  function getScrollTop() { return (document.scrollingElement || document.documentElement).scrollTop; }
+
+  function beginPress(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    press = { id: e.pointerId, startX: e.clientX, startY: e.clientY, scrollTop: getScrollTop(), active: true };
+    fontTriggerWrap.classList.add('is-pressed');
+    fontBtn.setPointerCapture?.(e.pointerId);
+  }
+  function endPress(e) {
+    if (!press || !press.active || e.pointerId !== press.id) return;
+    const { startX, startY, scrollTop } = press;
+    press.active = false; press = null;
+    fontTriggerWrap.classList.remove('is-pressed');
+
+    if (Math.abs(getScrollTop() - scrollTop) > SCROLL_CANCEL_PX) return;
+    const rect = fontBtn.getBoundingClientRect();
+    const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
+                   e.clientY >= rect.top && e.clientY <= rect.bottom;
+    if (!inside) return;
+    if (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10) return;
+
+    const now = performance.now();
+    if (now - lastEndPressTime < 100) return;
+    lastEndPressTime = now;
+
+    if (morphState === 'opening' || morphState === 'closing') interrupt();
+    else if (morphState === 'idle') openAnim();
+  }
+  function cancelPress() {
+    if (!press) return;
+    press.active = false; press = null;
+    fontTriggerWrap.classList.remove('is-pressed');
+  }
+
+  fontBtn.addEventListener('pointerdown', beginPress);
+  fontBtn.addEventListener('pointerup', endPress);
+  fontBtn.addEventListener('pointercancel', cancelPress);
+  fontBtn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') cancelPress(); });
+  window.addEventListener('scroll', () => {
+    if (!press || !press.active) return;
+    if (Math.abs(getScrollTop() - press.scrollTop) > SCROLL_CANCEL_PX) cancelPress();
+  }, { passive: true });
+
+  fontBtn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (morphState === 'idle') openAnim();
+      else if (morphState === 'open') closeAnim();
+    }
+  });
+
+  fontCloseBtn.addEventListener('click', () => {
+    if (morphState === 'open') closeAnim();
+    else if (morphState === 'opening') closeAnim(true);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && morphState === 'open') closeAnim();
+  });
+
+/* =========================================================
+   滑动返回手势（任意方向，未达阈值回弹）
+   ========================================================= */
+const GESTURE_THRESHOLD = 8;
+const GESTURE_COMPLETE_RATIO = 0.25;
+const GESTURE_VELOCITY_THRESHOLD = 0.45;
+const GESTURE_MAX_SCALE_DOWN = 0.85;
+const GESTURE_SCALE_DISTANCE = 260;
+
+let gestureState = null;
+
+function isInteractiveTarget(el) {
+  return el && el.closest && el.closest(
+    'mdui-button, mdui-button-icon, mdui-select, mdui-menu-item, button, input, select, .drag-resizer'
+  );
+}
+
+function clearGestureStyles() {
+  fontPageB.style.transition = '';
+  fontPageB.style.transform = '';
+  fontPageB.style.opacity = '';
+  fontPageB.style.borderRadius = '';
+  fontPageB.style.transformOrigin = '';
+  fontPageB.style.willChange = '';
+  fontPageB.style.overflow = '';
+}
+
+function onGestureStart(e) {
+  if (morphState !== 'open') return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (isInteractiveTarget(e.target)) return;
+
+  gestureState = {
+    pointerId: e.pointerId,
+    active: false,
+    startX: e.clientX,
+    startY: e.clientY,
+    lastX: e.clientX,
+    lastY: e.clientY,
+    samples: [{ x: e.clientX, y: e.clientY, t: performance.now() }],
+  };
+}
+
+function onGestureMove(e) {
+  if (!gestureState || e.pointerId !== gestureState.pointerId) return;
+
+  const dx = e.clientX - gestureState.startX;
+  const dy = e.clientY - gestureState.startY;
+
+  if (!gestureState.active) {
+    const dist = Math.hypot(dx, dy);
+    if (dist < GESTURE_THRESHOLD) return;
+    gestureState.active = true;
+    fontPageB.style.transition = 'none';
+    fontPageB.style.willChange = 'transform, opacity';
+    try { fontPageB.setPointerCapture(e.pointerId); } catch (_) {}
+  }
+
+  e.preventDefault();
+
+  const now = performance.now();
+  gestureState.samples.push({ x: e.clientX, y: e.clientY, t: now });
+  while (gestureState.samples.length > 1 && now - gestureState.samples[0].t > 100) {
+    gestureState.samples.shift();
+  }
+  gestureState.lastX = e.clientX;
+  gestureState.lastY = e.clientY;
+
+  const dist = Math.hypot(dx, dy);
+  const scale = 1 - Math.min(dist / GESTURE_SCALE_DISTANCE, 1) * (1 - GESTURE_MAX_SCALE_DOWN);
+  const maxDim = Math.max(window.innerWidth, window.innerHeight);
+  const opacity = 1 - Math.min(dist / (maxDim * 0.6), 1) * 0.5;
+  const radius = Math.min(dist / 2, 128);
+
+  fontPageB.style.transformOrigin = 'center center';
+  fontPageB.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+  fontPageB.style.opacity = String(opacity);
+  fontPageB.style.borderRadius = radius + 'px';
+  fontPageB.style.overflow = 'hidden';
+}
+
+function onGestureEnd(e) {
+  if (!gestureState || e.pointerId !== gestureState.pointerId) return;
+
+  const wasActive = gestureState.active;
+  if (!wasActive) { gestureState = null; return; }
+
+  const dx = gestureState.lastX - gestureState.startX;
+  const dy = gestureState.lastY - gestureState.startY;
+  const dist = Math.hypot(dx, dy);
+  const samples = gestureState.samples;
+  gestureState = null;
+
+  let vx = 0, vy = 0;
+  if (samples.length >= 2) {
+    const first = samples[0];
+    const last = samples[samples.length - 1];
+    const dt = last.t - first.t;
+    if (dt > 0) { vx = (last.x - first.x) / dt; vy = (last.y - first.y) / dt; }
+  }
+  const speed = Math.hypot(vx, vy);
+  const minDim = Math.min(window.innerWidth, window.innerHeight);
+
+  const shouldComplete =
+    dist > minDim * GESTURE_COMPLETE_RATIO ||
+    speed > GESTURE_VELOCITY_THRESHOLD;
+
+  if (shouldComplete) completeGestureClose();
+  else rebounceGesture();
+}
+
+function rebounceGesture() {
+  fontPageB.style.transition =
+    'transform 320ms cubic-bezier(0.22, 1, 0.36, 1), opacity 320ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 320ms cubic-bezier(0.22, 1, 0.36, 1)';
+  fontPageB.style.transform = 'translate(0, 0) scale(1)';
+  fontPageB.style.opacity = '1';
+  fontPageB.style.borderRadius = '0px';
+
+  setTimeout(() => {
+    clearGestureStyles();   // 去掉 morphState 判断，无条件清理
+  }, 340);
+}
+
+/* 从松手位置变成按钮形状归位 */
+function completeGestureClose() {
+  const token = ++animToken;
+  morphState = 'closing';
+  gestureClosing = true;
+  clearRadiusTimer();
+  document.body.classList.remove('font-page-open');
+  unlockBodyScroll();
+
+  const pageRect = fontPageB.getBoundingClientRect();
+  const pageStyle = getComputedStyle(fontPageB);
+  const currentOpacity = parseFloat(pageStyle.opacity) || 1;
+  const currentRadius = parseFloat(pageStyle.borderRadius) || 0;
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const startLeft = Math.max(-vw * 0.5, Math.min(vw, pageRect.left));
+  const startTop  = Math.max(-vh * 0.5, Math.min(vh, pageRect.top));
+  const startWidth  = Math.max(1, Math.min(vw * 2, pageRect.width));
+  const startHeight = Math.max(1, Math.min(vh * 2, pageRect.height));
+
+  const el = ensureLayer();
+  const surface = getSurfaceColor();
+  const rect = fontBtn.getBoundingClientRect();
+  const bg = getButtonColor();
+  const btnRadius = getButtonRadius(rect);
+
+  // 1. 先让 morphLayer 就位，和松手时的 fontPageB 完全重合
+  el.style.transition = 'none';
+  el.style.display = 'block';
+  el.style.background = surface;
+  el.style.opacity = String(currentOpacity);
+  el.style.left = startLeft + 'px';
+  el.style.top = startTop + 'px';
+  el.style.width = startWidth + 'px';
+  el.style.height = startHeight + 'px';
+  el.style.borderRadius = currentRadius + 'px';
+  el.classList.add('visible');
+
+  // 2. 等 morphLayer 渲染出来，再隐藏 fontPageB（避免空档闪烁）
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (token !== animToken) return;
+
+      // 隐藏 fontPageB
+      fontPageB.classList.remove('content-in');
+      fontPageB.classList.remove('active');
+      fontPageB.setAttribute('aria-hidden', 'true');
+      clearGestureStyles();
+
+      // 3. 启动缩回动画
+      el.style.transition = sizeTransition() + ', ' + radiusTransition(RADIUS_DELAY)
+        + `, background-color ${DURATION * 2}ms ${EASING}`;
+      requestAnimationFrame(() => {
+        if (token !== animToken) return;
+        el.style.left = rect.left + 'px';
+        el.style.top = rect.top + 'px';
+        el.style.width = rect.width + 'px';
+        el.style.height = rect.height + 'px';
+        el.style.borderRadius = btnRadius;
+        el.style.background = bg;
+        el.style.opacity = '1';
+      });
+
+      waitSize(el).then(() => {
+        if (token !== animToken) return;
+        el.style.transition = 'opacity 180ms ease';
+        el.style.opacity = '0';
+        setTimeout(() => {
+          if (token !== animToken) return;
+          el.style.display = 'none';
+          el.style.transition = '';
+          el.classList.remove('visible');
+          morphState = 'idle';
+          gestureClosing = false;
+          if (history.state && history.state.fontPage) {
+            history.replaceState(null, '', location.pathname + location.search);
+          }
+          fontBtn.focus({ preventScroll: true });
+        }, 200);
+      });
+    });
+  });
+}
+
+  fontPageB.addEventListener('pointerdown', onGestureStart);
+  fontPageB.addEventListener('pointermove', onGestureMove, { passive: false });
+  fontPageB.addEventListener('pointerup', onGestureEnd);
+  fontPageB.addEventListener('pointercancel', onGestureEnd);
+
+  // 浏览器/手机返回键统一由 popstate 驱动关闭
+  window.addEventListener('popstate', () => {
+    if (gestureClosing) return;   // 手势关闭动画进行中，忽略
+    if (morphState === 'open' || morphState === 'opening') {
+      closeAnim(morphState === 'opening');
+    }
+  });
+})();
+
+/* =========================================================
+   等待 MDUI 组件就绪
+   ========================================================= */
+if (window.customElements && customElements.whenDefined) {
+  Promise.allSettled([
+    customElements.whenDefined('mdui-slider'),
+    customElements.whenDefined('mdui-chip'),
+    customElements.whenDefined('mdui-text-field'),
+    customElements.whenDefined('mdui-button-icon'),
+    customElements.whenDefined('mdui-select'),
+    customElements.whenDefined('mdui-menu-item'),
+    customElements.whenDefined('mdui-dialog'),
+    customElements.whenDefined('mdui-top-app-bar'),
+    customElements.whenDefined('mdui-navigation-bar')
+  ]).then(() => {
+    requestAnimationFrame(() => {
+      applyStyles();
+      updateText();
+      setTimeout(maybeShowGuide, 400);
+    });
+  });
+}
+</script>
+</body>
+</html>
